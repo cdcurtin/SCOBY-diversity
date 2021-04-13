@@ -1,0 +1,145 @@
+---
+title: "Untitled"
+author: "Keisha Rose Harrison"
+date: "9/9/2020"
+output: html_document
+---
+
+Load libraries
+```{r}
+update.packages()
+install.packages("Hmisc")
+install.packages("igraph")
+install.packages("remotes")
+remotes::install_github("heuselm/mocode")
+install.packages("GGally")
+
+library(GGally)
+library(remotes)
+library(backports)
+library(Hmisc)
+library(dplyr)
+library(ape)
+library(vegan)
+library(corrplot)
+library(ggcorrplot)
+library(PerformanceAnalytics)
+library(igraph)
+
+```
+Load data
+```{r}
+otumat = read.csv("C:/Users/harrikei/Documents/First Paper-Diversity/R Scripts and Data/Diversity/otugenuscorrsmall.csv", sep=",") #OTU table
+row.names(otumat) <- otumat$X
+otumat <- otumat %>% select (-X)
+otu_mat <- as.matrix(otumat)
+
+```
+
+
+Create correlation data
+```{r setup, include=FALSE}
+corr <- cor(otu_mat) #Compute a correlation matrix
+pmat <- cor_pmat(otumat) #Compute a matrix of correlation p-values
+
+```
+
+
+
+
+This section provides a simple function for formatting a correlation matrix into a table with 4 columns containing :
+
+Column 1 : row names (variable 1 for the correlation test)
+Column 2 : column names (variable 2 for the correlation test)
+Column 3 : the correlation coefficients
+Column 4 : the p-values of the correlations
+
+```{r}
+
+res <- rcorr(as.matrix(otu_mat))
+
+flattenCorrMatrix <- function(corr, pmat) {
+  ut <- upper.tri(corr)
+  data.frame(
+    row = rownames(corr)[row(corr)[ut]],
+    column = rownames(corr)[col(corr)[ut]],
+    cor  =(corr)[ut],
+    p = pmat[ut]
+    )
+}
+
+
+corr.mat = flattenCorrMatrix(corr, pmat)
+```
+write.csv(corr.mat,'corrmatgenus1.csv')
+
+
+```{r}
+# Insignificant correlation are crossed
+corrplot(res$r, type="upper", order="hclust", 
+         p.mat = res$P, sig.level = 0.05, insig = "blank")
+# Insignificant correlations are leaved blank
+corrplot(res$r, type="upper", order="hclust", 
+         p.mat = res2$P, sig.level = 0.01, insig = "blank")
+
+ggcorr(res$r, nbreaks= 5, ggtheme = ggplot2::theme_gray, colors = c("#6D9EC1", "white", "#E46726"), label=FALSE, label_size=4, tl.cex=2, label_color='black', layout.exp=5, angle = 1,  hjust = 0.99) 
+```
+ggcorr(res$r, nbreaks= 5, ggtheme = ggplot2::theme_gray, colors = c("#E46726", "white","#6D9EC1"), label=FALSE, label_size=4, tl.cex=2, label_color='black', layout.exp=5, angle = 1,  hjust = 0.99, legend.size=10, tl.cex = 1.5, cl.cex = 1.5) 
+
+
+```{r}
+
+{plot.new(); dev.off()}
+corrplot(res$r)
+
+{plot.new(); dev.off()} 
+corrplot(res$r,title = "Correlation Plot", method = "square", outline = T, addgrid.col = "darkgray", order="hclust", mar = c(4,0,4,0), addrect = 4, rect.col = "black", rect.lwd = 5,cl.pos = "b", tl.col = "indianred4", tl.cex = 1.5, cl.cex = 1.5, type = "upper")
+
+```
+
+```{r}
+#o obtain the p-value information from the list, use otu.cor$P, using the function forceSymmetric() to assign self-correlation as NA
+otu.pval = forceSymmetric(res$P)
+```
+
+
+```{r}
+p.yes <- res$P<0.05
+
+r.val = res$r>0.2 # select all the correlation values 
+p.yes.r <- r.val*p.yes # only select correlation values based on p-value criterion 
+p.yes.r <- abs(p.yes.r)>0.2 # output is logical vector
+p.yes.rr <- p.yes.r*r.val # use logical vector for subscripting.
+adjm <- as.matrix(p.yes.rr)
+```
+
+
+```{r}
+net.grph=graph.adjacency(adjm,mode="undirected",weighted=TRUE,diag=FALSE)
+edgew<-E(net.grph)$weight
+V(net.grph)$color <- tax$Phylum
+bad.vs<-V(net.grph)[degree(net.grph) == 0] 
+net.grph <-delete.vertices(net.grph, bad.vs)
+```
+
+
+
+```{r}
+plot(net.grph,
+ vertex.size=8,
+ vertex.frame.color="black",
+ edge.curved=F,
+ edge.width=edgew,
+ layout=layout.fruchterman.reingold,
+ edge.color=ifelse(edgew > 1,"red","blue"),
+ vertex.label=NA,
+ vertex.label.color="black",
+ vertex.label.family="Times New Roman",
+ vertex.label.font=0.1)
+
+```
+
+```{r}
+
+```
+

@@ -1,0 +1,165 @@
+---
+title: "Phyloseq Rundown"
+output: pdf_document
+author: Keisha Harrison
+date: 03/05/20
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# load libraries
+```{r}
+install_github("pmartinezarbizu/pairwiseAdonis/pairwiseAdonis")
+install.packages("remotes")
+remotes::install_github("leffj/mctoolsr")
+
+library(stringi)
+library(phyloseq)
+library(ggplot2)
+library(dplyr)
+library(ape)
+library(S4Vectors)
+library(vegan)
+library(DESeq2)
+library(agricolae)
+library(devtools)
+library(pairwiseAdonis)
+library(xlsx)
+theme_set(theme_bw())
+
+
+source("https://bioconductor.org/biocLite.R")
+biocLite("GenomeInfoDbData")
+
+```
+
+#load data
+```{r}
+
+##load data csv files
+otumat = read.csv("C:/Users/harrikei/Documents/First Paper-Diversity/R Scripts and Data/Diversity/phyloseq/otumat3.csv", sep=",") #OTU table
+taxmat = read.csv("C:/Users/harrikei/Documents/First Paper-Diversity/R Scripts and Data/Diversity/phyloseq/taxmat.csv", sep = ",") #Taxa information
+meta = read.csv("C:/Users/harrikei/Documents/First Paper-Diversity/R Scripts and Data/Diversity/phyloseq/metamat3.csv", sep = ",") #Meta data
+
+#Set sample names and meta data labels so that we can call upon groups, ect
+row.names(otumat) <- otumat$X
+otumat <- otumat %>% select (-X) 
+
+row.names(taxmat) <- taxmat$X
+tax_mat <- taxmat %>% select (-X) 
+
+row.names(meta) <- meta$sample 
+samples_df <- meta %>% select (-sample) 
+
+
+# Convert OTU and taxa data frames into matrices to be compatible with phyloseq package
+otu_mat <- as.matrix(otumat)
+tax_mat <- as.matrix(taxmat)
+
+```
+
+
+#Construct phyloseq model 
+```{r}
+#load OTU data and taxonomy data into phyloseq model
+OTU = otu_table(otu_mat, taxa_are_rows = TRUE)
+TAX = tax_table(tax_mat)
+samples = sample_data(samples_df)
+samples
+
+#merge phyloseq model
+carbom <- phyloseq(OTU, TAX, samples)
+carbom
+
+#make phylo tree
+random_tree = rtree(ntaxa(carbom), rooted=TRUE, tip.label=taxa_names(carbom))
+
+sample_names(carbom)
+sample_variables(carbom)
+
+#Model now includes meta data, sample variables, OTU labels, OTU abundance, and random tree
+carbom = merge_phyloseq(carbom, random_tree)
+
+```
+
+#Construct bargraphs
+```{r}
+plot_bar(carbom, fill="Taxa")
+plot_bar(carbom, fill="Taxa") + facet_wrap(~Cluster, scales= "free_x", nrow=1)
+
+#without wrap
+#plot_bar(carbom, fill="Genus")
+
+```
+
+
+#Alpha diversity
+```{r}
+
+otu_table(carbom) <- otu_table(round(as((otu_table(carbom)), "matrix")), taxa_are_rows(carbom))
+rich = estimate_richness(carbom)
+alpha = estimate_richness(carbom, measures=c(samples, "Observed", "InvSimpson", "Shannon", "Chao1", "Simpson", samples))
+
+write.xlsx(alpha, "alphadiversy3.xlsx")
+plot_richness(carbom, measures=c("Simpson", "Shannon", "InvSimpson"))
+
+names = rownames(alpha)
+print(names)
+
+plot_richness(carbom, x="Cluster", measures=c("Simpson", "InvSimpson", "Observed")) + geom_boxplot() +  theme(text = element_text(size = 20))
+#ANOVA- alpha
+adonis(alpha$Simpson ~ sample_data(carbom)$Cluster)
+
+```
+
+#Beta-diversity/PCoA and ANOVA
+```{r}
+
+unifrac_dist = phyloseq::distance(carbom, method="unifrac", weighted=T)
+ordination <- ordinate(carbom, "PCoA", "unifrac", weighted = TRUE)
+ordinationu <- ordinate(carbom, "PCoA", "unifrac", weighted = FALSE)
+
+
+#Cluster-Diversity
+plot_ordination(carbom, ordination, color="Cluster") + theme(aspect.ratio=1) + theme(text = element_text(size = 20)) + stat_ellipse(geom = "polygon", aes(fill = Cluster), type = "norm", level = .9, alpha = 0.1)
+
+
+adonis(unifrac_dist ~ sample_data(carbom)$Origin)
+adonis(unifrac_dist ~ sample_data(carbom)$Cluster)
+adonis(unifrac_dist ~ sample_data(carbom)$Batch)
+adonis(unifrac_dist ~ sample_data(carbom)$Unique)
+
+#Location-Layer
+plot_ordination(carbom, ordination, color="Layer") + theme(aspect.ratio=1) + theme(text = element_text(size = 20)) + stat_ellipse(geom = "polygon", type = "norm", level = .8, alpha = 0.1)
+adonis(unifrac_dist ~ sample_data(carbom)$Layer)
+pairwise.adonis2(ordination ~ sample_data(carbom)$Layer)
+
+#Layer-Layer
+plot_ordination(carbom, ordination, color="Layer") + theme(aspect.ratio=2)
+adonis(wunifrac_dist ~ sam_data(carbom)$Layer)
+
+plot_ordination(carbom, carbom.ord, type="taxa", color="Genus", shape= "Family", 
+                title="OTUs")
+
+```
+
+
+
+Weighed Unifrac- PCoA
+```{r}
+ordplot = plot_ordination(carbom, ordination, color="Layer", title="PCoA - Unifrac") + theme(aspect.ratio=1)
+ordplot + stat_ellipse(geom = "polygon", type = "norm", alpha = 0.15, aes(fill = Layer)) + theme(text = element_text(size = 30)) 
+
+
+```
+
+Unweighed Unifrac- PCoA
+```{r}
+ordplotu = plot_ordination(carbom, ordinationu, color="Cluster", title="PCoA - Unweighed Unifrac") + theme(aspect.ratio=1)
+ordplotu + stat_ellipse(geom = "polygon", type = "norm", alpha = 0.2, aes(fill = Cluster))
+
+
+```
+
+

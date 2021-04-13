@@ -1,0 +1,59 @@
+---
+title: "Compute 2-Way ANOVA"
+author: "Keisha Rose Harrison"
+date: "10/2/2020"
+output: html_document
+---
+
+Install Packages
+```{r setup, include=FALSE}
+
+
+if(!require(devtools)) install.packages("devtools")
+devtools::install_github("kassambara/ggpubr")
+install.packages("dplyr")
+install.packages("ggpubr")
+
+
+library(dplyr)
+library(ggpubr)
+library(ggplot2)
+```
+
+Load data
+
+```{r}
+layers2 <- read_excel("C:/Users/harrikei/Documents/First Paper-Diversity/Data Combined QIIME2/R Layers/layers2.xlsx", 
+     col_types = c("text", "text", "text", 
+         "text", "numeric", "numeric"))
+
+head(layers2)
+```
+
+Visualize data with simple boxplot
+```{r}
+ggplot(layers2, aes(x = Location, y = Bacteria.Log)) + geom_boxplot(aes(fill = Layer)) + theme(text = element_text(size = 20)) 
+
+          
+bp          
+          
+          #palette = c("#00AFBB", "#E7B800"))
+```
+
+```{r}
+ggplot(layers2, aes(x = Location, y = Fungi.Log)) + geom_boxplot(aes(fill = Layer)) + theme(text = element_text(size = 20)) 
+```
+
+
+2-way ANOVA for bacteria & yeast
+```{r}
+
+res.aov <- aov(Fungi.Log ~ Location + Layer, data = layers2)
+summary(res.aov)
+```
+
+```{r}
+res2.aov <- aov(Bacteria.Log ~ Location + Layer, data = layers2)
+summary(res2.aov)
+```
+

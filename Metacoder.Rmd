@@ -1,0 +1,190 @@
+---
+title: "Metacoder"
+author: "Keisha Rose Harrison"
+date: "10/29/2020"
+output: html_document
+---
+
+```
+
+Load libraries
+```{r}
+library(metacoder)
+library(vegan)
+library(ggplot2)
+library(dplyr)
+library(agricolae)
+```
+
+
+Load data
+Required:
+1) An abundance matrix called hmp_otus, with samples in columns and Operational Taxonomic Units (OTUs) in rows
+2) A sample data table called hmp_samples, with samples as rows and columns of information describing the samples (e.g., gender)
+```{r}
+#load relative abundances 
+hmp_otus <- read.csv(file = "C:/Users/harrikei/Documents/Metacoder/MetaCoder Combined L6 No Broth Reduce.csv", 
+                  header = TRUE, #we have headers
+                  row.names = NULL,
+                  check.names = F,
+                  stringsAsFactors = FALSE,
+                  na = "empty"
+)
+
+#load meta data
+hmp_samples <- read.csv(file = "C:/Users/harrikei/Documents/Metacoder/MetaCoder L6 Meta No Broth Reduce.csv", 
+                        header = TRUE, #we have headers
+                        row.names = NULL,
+                        check.names = F,
+                        stringsAsFactors = FALSE,
+                        na = "empty"
+)
+```
+
+
+We can process the abundance matrix, and parse the taxonomic information at the same time, using a parser from taxa. This returns a taxmap object. The taxmap class is designed to store any number of tables, lists, or vectors associated with taxonomic information and facilitate manipulating the data.
+
+```{r}
+#We can process the abundance matrix, and parse the taxonomic information at the same time, using a parser from taxa
+
+
+obj <- parse_tax_data(hmp_otus,
+                      class_cols = "lineage", # the column that contains taxonomic information
+                      class_sep = ";", # The character used to separate taxa in the classification
+                      class_regex = "^(.+)__(.+)$", # Regex identifying where the data for each taxon is
+                      class_key = c(tax_rank = "info", # A key describing each regex capture group
+                                    tax_name = "taxon_name"))
+                                    
+                                    
+print(obj)
+
+```
+
+
+
+Some of these cells may contain a low number of observations. These low-abundance sequences might be the result of sequencing error, so typically we remove any counts/OTUs with less than some number of reads. These reads are set to zero. we remove any counts/OTUs with less than some number of reads. Lets set all counts with less than 10% of median, overwriting the original table:
+```{r}
+obj$data$tax_data <- zero_low_counts(obj, dataset = "tax_data", min_count = 32)
+```
+
+By setting low abundance counts to zero we might have created OTUs that no longer contain any observations. We can check as follows.
+```{r}
+no_reads <- rowSums(obj$data$tax_data[, hmp_samples$sample_id]) == 0
+sum(no_reads)
+```
+
+
+We can remove those OTUs with no reads and their associated taxa with filter_obs from the taxa package:
+```{r}
+
+obj <- filter_obs(obj, target = "tax_data", ! no_reads, drop_taxa = TRUE)
+print(obj)
+
+```
+
+Normalization: Here we use the function calc_obs_props to divide each sample’s counts by the total number of counts observed for each sample, resulting in a proportion.
+
+```{r}
+obj$data$tax_data <- calc_obs_props(obj, "tax_data")
+```
+
+Currently, we have values for the abundance of each OTU, not each taxon. To get information on the taxa, we can sum the abundance per-taxon and add the results to the taxmap object in a new table
+
+```{r}
+obj$data$tax_abund <- calc_taxon_abund(obj, "tax_data",
+                                       cols = hmp_samples$sample_id)
+```
+
+We calculate the number of samples that have reads for each taxon:
+```{r}
+obj$data$tax_occ <- calc_n_samples(obj, "tax_abund", groups = hmp_samples$cluster, cols = hmp_samples$sample_id)
+```
+
+print(obj$data$tax_occ)
+
+_________________________________________________________________________________________________________________________________
+
+Now that we have per-taxon information (The tax_abund and tax_occ tables), we can plot the information using heat trees. Heat trees are what we call taxonomic trees in which the size and color of tree parts correspond to some statistic of interest. 
+-The code below plots the number of “cluster”-n samples that have reads for each taxon as the size of each taxon. 
+-It also plots the number of OTUs or ASVs assigned to each taxon in the overall dataset as color.
+
+print(obj$data$tax_abund)
+
+
+print(obj$n_obs())
+```{r}
+set.seed(2) # This makes the plot appear the same each time it is run 
+heat_tree(obj, 
+          node_label = taxon_names,
+          node_size = n_obs,
+          node_color = cluster5, 
+          node_size_axis_label = "OTU count",
+          node_color_axis_label = "Samples with reads",
+          layout = "davidson-harel", # The primary layout algorithm
+          initial_layout = "reingold-tilford") # The layout algorithm that initializes node locations
+
+```
+
+
+
+
+```{r}
+a = obj$data$tax_data[,hmp_samples1$sample_id]
+
+hmp_samples1$inv_simp <- diversity(obj$data$tax_data[, hmp_samples1$sample_id],
+                                  index = "invsimpson",
+                                  MARGIN = 2) # What orietation the matrix is in
+
+
+ggplot(hmp_samples1, aes(x = cluster, y = inv_simp)) +
+  geom_boxplot() + theme(text = element_text(size = 30)) 
+
+
+anova_result <- aov(inv_simp ~ cluster, hmp_samples1)
+summary(anova_result)
+
+tukey_result <- HSD.test(anova_result, "cluster", group = TRUE)
+print(tukey_result)
+```
+
+ggplot(hmp_samples1, aes(x = cluster, y = inv_simp)) +
+  geom_boxplot() + theme(text = element_text(size = 30)) 
+
+```{r}
+obj$data$diff_table <- compare_groups(obj, dataset = "tax_abund",
+                                      cols = hmp_samples$sample_id, # What columns of sample data to use
+                                      groups = hmp_samples$cluster) # What category each sample is assigned to
+print(obj$data$diff_table)
+
+```
+
+```{r}
+set.seed(2)
+heat_tree_matrix(obj,
+                 data = "diff_table",
+                 seed = 1,
+                 node_size = n_obs, # n_obs is a function that calculates, in this case, the number of OTUs per taxon
+                 node_label = taxon_names,
+                 node_color = log2_median_ratio, # A column from `obj$data$diff_table`
+                 node_color_range = diverging_palette(), # The built-in palette for diverging data
+                 node_color_trans = "linear", # The default is scaled by circle area
+                 node_color_interval = c(-3, 3), # The range of `log2_median_ratio` to display
+                 edge_color_interval = c(-3, 3), # The range of `log2_median_ratio` to display
+                 key_size = 0.55,
+                 node_size_axis_label = "n_obs",
+                 node_color_axis_label = "Log2 ratio median proportions",
+                 layout = "davidson-harel", # The primary layout algorithm
+                 initial_layout = "reingold-tilford", # The layout algorithm that initializes node locations
+                )
+
+```
+
+
+heattree + theme(text = element_text(size = 40)) 
+
+
+obj %>%
+  heat_tree(node_label = taxon_names,
+            node_size = n_obs,
+            node_color = n_obs,
+            output_file = "plot_example.pdf")

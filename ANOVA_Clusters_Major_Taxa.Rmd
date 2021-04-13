@@ -1,0 +1,63 @@
+---
+title: "ANOVA taxa diversity"
+author: "Keisha Rose Harrison"
+date: "1/14/2021"
+output: html_document
+---
+
+
+## Libraries
+```{r}
+library(dplyr)
+```
+
+
+#Load data
+```{r}
+df = read.csv("C:/Users/harrikei/Documents/First Paper-Diversity/R Scripts and Data/ANOVAOTU.csv", sep=",") #OTU table
+
+head(df)
+```
+
+two (or more) Factor ANOVA.... nope one factor
+```{r}
+brett = aov(g__Brettanomyces ~ Clusters, data = df)
+summary(brett)
+TukeyHSD(brett, "Clusters")
+```
+
+```{r}
+kom = aov(g__Komagateibacter ~ Clusters, data = df)
+summary(kom)
+TukeyHSD(kom, "Clusters")
+```
+```{r}
+zygo = aov(g__Zygosaccharomyces ~ Clusters, data = df)
+summary(zygo)
+TukeyHSD(zygo, "Clusters")
+```
+
+
+```{r}
+tant = aov(g__Tanticharoenia ~ Clusters, data = df)
+summary(tant)
+TukeyHSD(tant, "Clusters")
+
+```
+
+```{r}
+lact = aov(f__Lactobacillaceae ~ Clusters, data = df)
+summary(lact)
+TukeyHSD(lact, "Clusters")
+```
+```{r}
+star = aov(g__Starmerella ~ Clusters, data = df)
+summary(star)
+TukeyHSD(star, "Clusters")
+```
+```{r}
+Lach = aov(g__Lachancea ~ Cluster, data = df)
+summary(Lach)
+TukeyHSD(Lach, "Cluster")
+```
+

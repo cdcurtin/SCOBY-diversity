@@ -1,0 +1,96 @@
+---
+title: "Untitled"
+author: "Keisha Rose Harrison"
+date: "11/16/2020"
+output: html_document
+---
+library
+```{r setup, include=FALSE}
+install.packages("tidyverse")
+library("factoextra")
+library("ComplexHeatmap")
+library("GetoptLong")
+library("RColorBrewer")
+library("openxlsx")
+library("tidyverse")
+library("cluster")
+```
+
+data
+```{r}
+genus <- read.csv(file = "C:/Users/harrikei/Documents/First Paper-Diversity/R Scripts and Data/Diversity/heatmap/otugenus.csv", 
+                  header = TRUE, #we have headers
+                  row.names = NULL,
+                  check.names = F,
+                  stringsAsFactors = FALSE,
+                  na = "empty"
+)
+
+row.names(genus) <- make.names(genus[,1], TRUE)
+
+
+meta <- read.csv(file = "C:/Users/harrikei/Documents/First Paper-Diversity/R Scripts and Data/Diversity/metacluster.csv", 
+                 header = TRUE,
+                 row.names = 1,
+                 stringsAsFactors = FALSE)
+
+
+```
+
+format data matrix
+```{r}
+genus1 <- data.frame(genus[1:104, 2:22])
+genus1 <- data.matrix(genus1)
+genust<-as.data.frame(t(genus1))
+genust <- data.matrix(genust)
+```
+
+estabish annotations
+```{r}
+ann <- data.frame(meta$Batch, meta$Origin) 
+colnames(ann) <- c("Batch", "Origin")
+colours <- list("Batch"=c("1"="royalblue4", "2"="lightsteelblue1"), 
+                  "Origin" = c("North America" = "snow3", "Other" = "slategrey"))
+colAnn <- HeatmapAnnotation(df = ann, which ="col", col = colours, annotation_width = unit(c(1,4), "cm"))
+
+```
+
+K-means clustering 
+```{r}
+set.seed(123)
+#elbow method
+fviz_nbclust(genust, kmeans, method = "wss") #2 and 4 are the best clusters
+
+#cluster method
+fviz_nbclust(genust, kmeans, method = "silhouette") #2 and 4 are the best clusters
+```
+
+
+
+
+create hmap
+```{r}
+hmap <- Heatmap(genust, column_km=4, name = "Relative Abundance", col = brewer.pal(9, "Reds"), 
+                show_row_names = TRUE,
+                row_title = "Taxa",
+                show_column_names = TRUE,
+                cluster_rows = TRUE,
+                cluster_columns = TRUE,
+                show_column_dend = TRUE,
+                show_row_dend = FALSE,
+                row_dend_reorder = TRUE,
+                column_dend_reorder = TRUE,
+                clustering_method_rows = "ward.D2",
+                clustering_method_columns = "ward.D2",
+                width = unit(150, "mm"),
+               top_annotation=colAnn
+              )
+
+```
+
+
+draw hmap1
+```{r}
+draw(hmap, heatmap_legend_side="left")
+
+```
